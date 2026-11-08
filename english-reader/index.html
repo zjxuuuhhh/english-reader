@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>英语朗读 · English Reader</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== 顶部工具栏 ===== -->
+<header class="topbar">
+  <div class="brand">📖 英语朗读</div>
+
+  <div class="topbar-group">
+    <select id="providerSel" title="朗读音源">
+      <option value="edge">Edge 神经语音（免费）</option>
+      <option value="omni">OmniVoice API</option>
+    </select>
+
+    <select id="voiceSel" title="音色"></select>
+    <span id="omniVoiceHint" class="hint" hidden>音色在「设置」中配置</span>
+
+    <div class="rate-box" title="语速">
+      <span>语速</span>
+      <input type="range" id="rateRange" min="50" max="200" step="5" value="100">
+      <span id="rateVal" class="mono">1.00x</span>
+    </div>
+  </div>
+
+  <div class="topbar-group">
+    <label class="switch" title="打开后点击任意单词立即发音">
+      <input type="checkbox" id="wordSpeakTgl" checked>
+      <span class="slider"></span>
+      <span class="switch-label">点词发音</span>
+    </label>
+    <label class="switch" title="当前句播完自动重播，适合跟读练习">
+      <input type="checkbox" id="loopTgl">
+      <span class="slider"></span>
+      <span class="switch-label">单句循环</span>
+    </label>
+  </div>
+
+  <div class="topbar-group">
+    <button id="btnImport" class="btn" title="粘贴文本或上传 .txt">📥 导入文本</button>
+    <button id="btnVocab" class="btn" title="生词收藏">📓 生词本</button>
+    <button id="btnHistory" class="btn" title="最近导入的文本">🕘 历史</button>
+    <button id="btnSettings" class="btn" title="OmniVoice 配置">⚙️ 设置</button>
+    <button id="btnTheme" class="btn icon" title="深色 / 浅色">🌙</button>
+  </div>
+</header>
+
+<!-- ===== 导入区 ===== -->
+<main class="main">
+  <section id="importView" class="panel" hidden>
+    <h2>导入英语文本</h2>
+    <p class="hint">把英语文章粘贴到下面，或上传 .txt 文件。支持整篇朗读、逐句朗读、点击单词发音。</p>
+    <textarea id="importText" rows="12" placeholder="Paste your English text here…&#10;例如：粘贴一段新闻、课文或故事"></textarea>
+    <div class="row">
+      <button id="btnLoad" class="btn primary">▶ 载入并朗读</button>
+      <label class="btn file-btn">📁 选择 .txt 文件<input type="file" id="fileInput" accept=".txt,text/plain" hidden></label>
+      <button id="btnCancelImport" class="btn ghost">返回阅读</button>
+      <span id="importStat" class="hint"></span>
+    </div>
+  </section>
+
+  <!-- ===== 阅读区 ===== -->
+  <section id="readView" class="panel" hidden>
+    <div id="textContent" class="text-content"></div>
+  </section>
+
+  <section id="emptyView" class="panel empty">
+    <div class="empty-icon">🔊</div>
+    <h2>欢迎来到英语朗读</h2>
+    <p class="hint">点击右上角「📥 导入文本」粘贴你的英语文章，<br>或点击下方按钮用示例文本试一试。</p>
+    <button id="btnSample" class="btn primary">✨ 用示例文本试试</button>
+  </section>
+</main>
+
+<!-- ===== 底部播放条 ===== -->
+<footer id="playerBar" class="player-bar" hidden>
+  <button id="btnPrev" class="btn icon big" title="上一句（←）">⏮</button>
+  <button id="btnPlay" class="btn icon accent big" title="播放 / 暂停（空格）">▶</button>
+  <button id="btnNext" class="btn icon big" title="下一句（→）">⏭</button>
+  <button id="btnStop" class="btn icon big" title="停止">⏹</button>
+  <div class="player-info">
+    <div id="playPos" class="mono">未开始</div>
+    <div id="playText" class="player-text"></div>
+  </div>
+</footer>
+
+<!-- ===== 设置弹窗（OmniVoice） ===== -->
+<dialog id="settingsDlg" class="dlg">
+  <div class="dlg-body">
+    <h2>⚙️ 设置 · OmniVoice</h2>
+    <p class="hint">OmniVoice 使用 OpenAI 兼容接口（/v1/audio/speech）。API Key 只保存在本机浏览器中。</p>
+
+    <label class="field">
+      <span>Base URL</span>
+      <input id="omniBase" type="text" placeholder="例如 https://api.example.com 或 http://127.0.0.1:8880">
+    </label>
+    <label class="field">
+      <span>API Key</span>
+      <input id="omniKey" type="password" placeholder="sk-…（留空则不发送 Authorization）">
+    </label>
+    <div class="field-row">
+      <label class="field">
+        <span>模型名</span>
+        <input id="omniModel" type="text" placeholder="k2-fsa/OmniVoice">
+      </label>
+      <label class="field">
+        <span>音色 Voice</span>
+        <input id="omniVoice" type="text" placeholder="auto / alloy / 音色名">
+      </label>
+    </div>
+    <label class="field">
+      <span>额外参数（JSON，可选，如音色克隆参数）</span>
+      <input id="omniExtra" type="text" placeholder='例如 {"ref_audio":"https://…"}'>
+    </label>
+
+    <label class="field radio-field">
+      <span class="radio-line">
+        <input type="radio" name="omniMode" value="direct" checked> 浏览器直连（要求服务器允许跨域 CORS）
+      </span>
+      <span class="radio-line">
+        <input type="radio" name="omniMode" value="proxy"> 经本地代理转发（先运行 <code>node server.js</code>，推荐）
+      </span>
+    </label>
+
+    <div class="row">
+      <button type="button" id="btnTestOmni" class="btn">🔌 测试连接</button>
+      <span id="testResult" class="hint"></span>
+    </div>
+
+    <div class="row right">
+      <button type="button" id="btnSettingsCancel" class="btn ghost">取消</button>
+      <button type="button" id="btnSettingsSave" class="btn primary">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ===== 生词本弹窗 ===== -->
+<dialog id="vocabDlg" class="dlg">
+  <div class="dlg-body">
+    <h2>📓 生词本 <span id="vocabCount" class="hint"></span></h2>
+    <p class="hint">阅读时<b>双击单词</b>即可收藏；点击生词可听发音。</p>
+    <div class="row">
+      <input id="vocabInput" type="text" placeholder="手动添加单词…">
+      <button id="btnVocabAdd" class="btn primary">添加</button>
+    </div>
+    <div id="vocabList" class="vocab-list"></div>
+    <div class="row right">
+      <button type="button" id="btnVocabClear" class="btn ghost danger">清空全部</button>
+      <button type="button" id="btnVocabClose" class="btn">关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- ===== 历史弹窗 ===== -->
+<dialog id="historyDlg" class="dlg">
+  <div class="dlg-body">
+    <h2>🕘 学习历史</h2>
+    <div id="historyList" class="history-list"></div>
+    <div class="row right">
+      <button type="button" id="btnHistoryClose" class="btn">关闭</button>
+    </div>
+  </div>
+</dialog>
+
+<div id="toastBox" class="toast-box"></div>
+
+<script src="js/edge-drm.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
